@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>El Gusano</title>
+<meta name="description" content="Mueve el mouse o el dedo, come cosas random y activa el modo furor.">
+<style>
+  :root { --bg: #0d0a1f; --ink: #f3efff; --mut: rgba(243, 239, 255, .7); }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    overflow: hidden;
+    overscroll-behavior: none;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #stage { touch-action: none; cursor: none; }
+  #items { pointer-events: none; }
+
+  .hint {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+    transform: translateX(-50%);
+    color: var(--ink);
+    font-size: 1.05rem;
+    font-weight: 500;
+    line-height: 1.4;
+    opacity: .75;
+    transition: opacity .8s ease;
+    pointer-events: none;
+    text-align: center;
+    padding: 0 1rem;
+  }
+  .hint.gone { opacity: 0; }
+
+  .tools {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
+    right: 14px;
+    display: flex;
+    gap: 8px;
+  }
+  .tools button {
+    min-height: 44px;
+    padding: 0 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .25);
+    background: rgba(255, 255, 255, .08);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: .95rem;
+    font-weight: 500;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+  .tools button:hover { background: rgba(255, 255, 255, .16); }
+  .tools button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .furor {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 18px);
+    left: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .furor .bar {
+    width: 110px;
+    height: 10px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .14);
+    overflow: hidden;
+  }
+  #furorFill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #4fe3ff, #ffd24f, #ff4fa3);
+  }
+  #furorLabel {
+    color: var(--mut);
+    font-size: .85rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .furor.on .bar { box-shadow: 0 0 14px 2px rgba(255, 79, 163, .7); }
+  .furor.on #furorLabel { color: #ffd24f; }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="Un gusano de colores que sigue tu cursor o tu dedo y come cosas"></canvas>
+<canvas id="items" aria-hidden="true"></canvas>
+
+<div class="furor" id="furorBox">
+  <div class="bar"><div id="furorFill"></div></div>
+  <span id="furorLabel">furor</span>
+</div>
+
+<p class="hint" id="hint">Mueve el dedo o el mouse y come cosas</p>
+<div class="tools">
+  <button type="button" id="clear">Limpiar</button>
+  <button type="button" id="save">Guardar imagen</button>
+</div>
+
+<!-- Aquí puedes poner más adelante una barra de publicidad (propia o AdSense) -->
+
+<script>
+(() => {
+  const BGRGB = '13,10,31';
+  const BG = '#0d0a1f';
+  const N = 20;        // largo del gusano (segmentos). Fijo: no crece al comer
+  const NEED = 8;      // cosas que hay que comer para activar el furor
+  const FRENZY = 6;    // segundos que dura el furor
+  const EMOJIS = ['🍕', '🍩', '🍉', '🍔', '🍟', '🍓', '🍪', '🌮', '🍌', '🧀',
+                  '🐸', '👻', '🚀', '🦄', '👾', '🛸', '🐙', '⭐', '🦖', '🤖'];
+  const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (id) => document.getElementById(id);
+
+  const stage = $('stage'), ctx = stage.getContext('2d');
+  const itemsC = $('items'), ictx = itemsC.getContext('2d');
+  const hint = $('hint');
+  const furorFill = $('furorFill'), furorLabel = $('furorLabel'), furorBox = $('furorBox');
+
+  let W = 0, H = 0, L = 12, itemSize = 40;
+  const segs = [];
+  const target = { x: 0, y: 0 };
+  const head = { x: 0, y: 0 };
+  const sparks = [], rings = [], items = [], eatFx = [], gulps = [];
+  let hue = Math.random() * 360;
+  let dirX = 1, dirY = 0;
+  let speed = 0, flash = 0, fzS = 1;
+  let lastMove = 0, lastT = 0, moved = false;
+  let eaten = 0, frenzy = false, frenzyT = 0, spawnCd = 0;
+
+  function sizeCanvas(c, g, dpr) {
+    c.width = Math.round(W * dpr);
+    c.height = Math.round(H * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    sizeCanvas(stage, ctx, dpr);
+    sizeCanvas(itemsC, ictx, dpr);
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, W, H);
+    const m = Math.min(W, H);
+    L = Math.max(8, Math.min(14, m / 32));
+    itemSize = Math.max(32, Math.min(50, m / 11));
+  }
+
+  // ---------- Chispas (más grandes y brillantes) ----------
+  function addSpark(x, y, h, power) {
+    if (sparks.length > 220) return;
+    const a = Math.random() * Math.PI * 2;
+    const v = (3 + Math.random() * 5) * (power || 1) * 60;
+    sparks.push({
+      x, y,
+      vx: Math.cos(a) * v,
+      vy: Math.sin(a) * v,
+      life: 1,
+      w: 2.6 + Math.random() * 1.8,
+      h: ((h + Math.random() * 40) % 360 + 360) % 360
+    });
+  }
+
+  function burstAt(x, y, n, power) {
+    for (let i = 0; i < n; i++) addSpark(x, y, hue + Math.random() * 60, power);
+  }
+
+  // ---------- Cosas para comer ----------
+  function spawnItem(now) {
+    const m = itemSize;
+    for (let tries = 0; tries < 10; tries++) {
+      const x = m + Math.random() * Math.max(1, W - 2 * m);
+      const y = 90 + Math.random() * Math.max(1, H - 90 - m - 60);
+      if (Math.hypot(x - head.x, y - head.y) < 140) continue;
+      let ok = true;
+      for (const it of items) {
+        if (Math.hypot(x - it.x, y - it.y) < itemSize * 1.4) { ok = false; break; }
+      }
+      if (!ok) continue;
+      items.push({
+        x, y,
+        e: EMOJIS[(Math.random() * EMOJIS.length) | 0],
+        size: itemSize * (0.9 + Math.random() * 0.3),
+        born: now,
+        ph: Math.random() * Math.PI * 2
+      });
+      return;
+    }
+  }
+
+  function updateMeter() {
+    if (frenzy) {
+      furorFill.style.width = (Math.max(0, frenzyT) / FRENZY * 100).toFixed(1) + '%';
+    } else {
+      furorFill.style.width = (eaten / NEED * 100).toFixed(1) + '%';
+    }
+  }
+
+  function startFrenzy() {
+    frenzy = true;
+    frenzyT = FRENZY;
+    eaten = 0;
+    furorBox.classList.add('on');
+    furorLabel.textContent = '¡FUROR!';
+    burstAt(head.x, head.y, reduce ? 10 : 36, 1.8);
+    for (let i = 0; i < 3; i++) {
+      rings.push({ x: head.x, y: head.y, r: -i * 40, max: 260 + i * 60, h: (hue + i * 60) % 360 });
+    }
+  }
+
+  function endFrenzy() {
+    frenzy = false;
+    furorBox.classList.remove('on');
+    furorLabel.textContent = 'furor';
+    flash = 1;
+    burstAt(head.x, head.y, reduce ? 6 : 20, 1.4);
+    updateMeter();
+  }
+
+  function eat(i, now) {
+    const it = items.splice(i, 1)[0];
+    eatFx.push({ x: it.x, y: it.y, e: it.e, size: it.size, t0: now });
+    gulps.push(now);
+    flash = 1;
+    burstAt(it.x, it.y, reduce ? 4 : (frenzy ? 8 : 12), 1.3);
+    rings.push({ x: it.x, y: it.y, r: 0, max: 90 + Math.random() * 60, h: hue });
+    if (!frenzy) {
+      eaten++;
+      if (eaten >= NEED) startFrenzy();
+    }
+    updateMeter();
+  }
+
+  // ---------- Bucle principal ----------
+  function frame(t) {
+    const now = t / 1000;
+    if (!lastT) lastT = t;
+    const dt = Math.min(0.05, Math.max(0.001, (t - lastT) / 1000));
+    lastT = t;
+
+    // Si nadie lo mueve, el gusano va a buscar comida solito
+    if (!reduce && t - lastMove > 2500) {
+      let best = null, bd = 1e9;
+      for (const it of items) {
+        const d = Math.hypot(it.x - head.x, it.y - head.y);
+        if (d < bd) { bd = d; best = it; }
+      }
+      if (best) { target.x = best.x; target.y = best.y; }
+      else {
+        target.x = W / 2 + Math.cos(now * 0.7) * W * 0.28;
+        target.y = H / 2 + Math.sin(now * 1.1) * H * 0.25;
+      }
+    }
+
+    // Cabeza (en furor se vuelve loco: zigzaguea alrededor de tu dedo)
+    const wob = (frenzy && !reduce) ? 28 : 0;
+    const gx = target.x + Math.cos(now * 9) * wob;
+    const gy = target.y + Math.sin(now * 7.3) * wob;
+    const px = head.x, py = head.y;
+    const ease = 1 - Math.exp(-dt * (frenzy ? 22 : 13.4));
+    head.x += (gx - head.x) * ease;
+    head.y += (gy - head.y) * ease;
+    const dx = head.x - px, dy = head.y - py;
+    const len = Math.hypot(dx, dy);
+    const sp = len / dt;
+    speed += (sp - speed) * (1 - Math.exp(-dt * 9.7));
+    if (sp > 30) {
+      const k = 1 - Math.exp(-dt * 6.3);
+      dirX += (dx / len - dirX) * k;
+      dirY += (dy / len - dirY) * k;
+    }
+    const ang = Math.atan2(dirY, dirX);
+
+    hue = (hue + dt * (30 + speed * 0.35 + (frenzy ? 360 : 0))) % 360;
+    const baseHue = (hue + (ang + Math.PI) * 57.2958 * 0.25) % 360;
+
+    flash *= Math.exp(-dt * 4);
+    fzS += ((frenzy ? 1.3 : 1) - fzS) * (1 - Math.exp(-dt * 8));
+
+    // Cuerpo (largo fijo)
+    segs[0].x = head.x;
+    segs[0].y = head.y;
+    for (let i = 1; i < N; i++) {
+      const p = segs[i - 1], s = segs[i];
+      const a = Math.atan2(p.y - s.y, p.x - s.x);
+      s.x = p.x - Math.cos(a) * L;
+      s.y = p.y - Math.sin(a) * L;
+    }
+
+    // Fondo con estela
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(' + BGRGB + ',0.14)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Ondas
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const r = rings[i];
+      r.r += dt * 420;
+      const al = 1 - r.r / r.max;
+      if (al <= 0) { rings.splice(i, 1); continue; }
+      if (r.r < 0) continue;
+      ctx.strokeStyle = 'hsla(' + (r.h | 0) + ',100%,65%,' + al.toFixed(2) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Comida: imán en furor, comer al tocar
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      const d = Math.hypot(it.x - head.x, it.y - head.y);
+      if (frenzy && d < 220 && d > 1) {
+        const s2 = (150 + 600 * (1 - d / 220)) * dt;
+        it.x += (head.x - it.x) / d * s2;
+        it.y += (head.y - it.y) / d * s2;
+      }
+      const R0 = L * 1.05 * fzS;
+      if (now - it.born > 0.25 && d < R0 * 1.2 + it.size * 0.45) eat(i, now);
+    }
+
+    // Aparecen cosas nuevas
+    spawnCd -= dt;
+    const maxItems = frenzy ? 9 : 4;
+    if (items.length < maxItems && spawnCd <= 0) {
+      spawnItem(now);
+      spawnCd = frenzy ? 0.15 + Math.random() * 0.3 : 0.5 + Math.random();
+    }
+
+    // Furor: cuenta regresiva
+    if (frenzy) {
+      frenzyT -= dt;
+      updateMeter();
+      if (frenzyT <= 0) endFrenzy();
+    }
+
+    // Gusano (con "glup": una ola que recorre el cuerpo sin estirarlo)
+    for (let i = gulps.length - 1; i >= 0; i--) if (now - gulps[i] > 0.9) gulps.splice(i, 1);
+    const R = L * 1.05 * fzS;
+    for (let i = N - 1; i >= 0; i--) {
+      const s = segs[i];
+      const k = 1 - i / N;
+      let m = 1;
+      for (const g of gulps) {
+        const a = 1 - Math.abs(i - (now - g) * 38) / 2.5;
+        if (a > 0) m = Math.max(m, 1 + 0.5 * a);
+      }
+      const r = R * (0.3 + 0.7 * Math.pow(k, 0.7)) * m;
+      const c = 'hsl(' + (((baseHue + i * 6) % 360) | 0) + ',95%,' + (60 + flash * 15).toFixed(0) + '%)';
+      ctx.shadowColor = c;
+      ctx.shadowBlur = reduce ? 0 : 14 + flash * 22 + (frenzy ? 18 : 0);
+      ctx.fillStyle = c;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+
+    // Ojitos
+    const dl = Math.hypot(dirX, dirY) || 1;
+    const ux = dirX / dl, uy = dirY / dl;
+    const nx = -uy, ny = ux;
+    for (const side of [-1, 1]) {
+      const ex = head.x + ux * R * 0.25 + nx * R * 0.45 * side;
+      const ey = head.y + uy * R * 0.25 + ny * R * 0.45 * side;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ex, ey, R * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1a1033';
+      ctx.beginPath();
+      ctx.arc(ex + ux * R * 0.1, ey + uy * R * 0.1, R * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Chispas al moverte rápido (y sin parar en furor)
+    if (!reduce && speed > 840 && Math.random() < 0.6) addSpark(head.x, head.y, baseHue, 1);
+    if (!reduce && frenzy && Math.random() < 0.9) addSpark(head.x, head.y, baseHue, 1.6);
+    ctx.lineCap = 'round';
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const p = sparks[i];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const f = Math.exp(-dt * 3.7);
+      p.vx *= f; p.vy *= f;
+      p.life -= dt * 2.1;
+      if (p.life <= 0) { sparks.splice(i, 1); continue; }
+      const tx = p.x - p.vx * 0.067, ty = p.y - p.vy * 0.067;
+      const w = p.w * (0.35 + 0.65 * p.life);
+      ctx.strokeStyle = 'hsla(' + (p.h | 0) + ',100%,70%,' + (p.life * 0.28).toFixed(2) + ')';
+      ctx.lineWidth = w * 2.4;
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(tx, ty); ctx.stroke();
+      const core = 'hsla(' + (p.h | 0) + ',100%,88%,' + p.life.toFixed(2) + ')';
+      ctx.strokeStyle = core;
+      ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.fillStyle = core;
+      ctx.beginPath(); ctx.arc(p.x, p.y, w * 0.7, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Capa de cosas (se redibuja limpia cada cuadro)
+    ictx.clearRect(0, 0, W, H);
+    ictx.textAlign = 'center';
+    ictx.textBaseline = 'middle';
+    for (const it of items) {
+      const age = now - it.born;
+      if (age < 0) continue;
+      const s0 = Math.min(1, age / 0.35);
+      const eb = 1 + 2.70158 * Math.pow(s0 - 1, 3) + 1.70158 * Math.pow(s0 - 1, 2);
+      ictx.save();
+      ictx.translate(it.x, it.y + (reduce ? 0 : Math.sin(now * 2 + it.ph) * 4));
+      ictx.rotate(reduce ? 0 : Math.sin(now * 1.6 + it.ph) * 0.25);
+      ictx.font = (it.size * eb).toFixed(1) + 'px ' + EMOJI_FONT;
+      ictx.shadowColor = 'rgba(255,255,255,0.35)';
+      ictx.shadowBlur = reduce ? 0 : 14;
+      ictx.fillText(it.e, 0, 0);
+      ictx.restore();
+    }
+    for (let i = eatFx.length - 1; i >= 0; i--) {
+      const f = eatFx[i];
+      const a = (now - f.t0) / 0.35;
+      if (a >= 1) { eatFx.splice(i, 1); continue; }
+      ictx.save();
+      ictx.globalAlpha = 1 - a;
+      ictx.font = (f.size * (1 + a * 0.9)).toFixed(1) + 'px ' + EMOJI_FONT;
+      ictx.fillText(f.e, f.x, f.y);
+      ictx.restore();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Entrada ----------
+  function onMove(e) {
+    target.x = e.clientX;
+    target.y = e.clientY;
+    lastMove = performance.now();
+    if (!moved) {
+      moved = true;
+      hint.classList.add('gone');
+    }
+  }
+
+  stage.addEventListener('pointermove', onMove, { passive: true });
+  stage.addEventListener('pointerdown', (e) => {
+    onMove(e);
+    if (!reduce) burstAt(e.clientX, e.clientY, 14, 1.4);
+  });
+
+  $('clear').addEventListener('click', () => {
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, W, H);
+  });
+
+  $('save').addEventListener('click', () => {
+    const tmp = document.createElement('canvas');
+    tmp.width = stage.width;
+    tmp.height = stage.height;
+    const g = tmp.getContext('2d');
+    g.drawImage(stage, 0, 0);
+    g.drawImage(itemsC, 0, 0);
+    tmp.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'mi-gusano.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+  });
+
+  function init() {
+    resize();
+    target.x = head.x = W / 2;
+    target.y = head.y = H / 2;
+    for (let i = 0; i < N; i++) segs.push({ x: W / 2, y: H / 2 });
+    const now = performance.now() / 1000;
+    for (let i = 0; i < 3; i++) spawnItem(now + i * 0.2);
+    updateMeter();
+  }
+
+  window.addEventListener('resize', resize);
+  init();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
