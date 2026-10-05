@@ -29,7 +29,7 @@
   .hint {
     position: fixed;
     left: 50%;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
     transform: translateX(-50%);
     color: var(--ink);
     font-size: 1.05rem;
@@ -96,6 +96,29 @@
   }
   .furor.on .bar { box-shadow: 0 0 14px 2px rgba(255, 79, 163, .7); }
   .furor.on #furorLabel { color: #ffd24f; }
+
+  .promo {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 1.1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .25);
+    background: rgba(255, 255, 255, .08);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    color: var(--ink);
+    font-size: .95rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .promo:hover { background: rgba(255, 255, 255, .16); }
+  .promo:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -108,6 +131,7 @@
 </div>
 
 <p class="hint" id="hint">Mueve el dedo o el mouse y come cosas</p>
+<a class="promo" href="https://wafflefun.github.io/tucaos/">🌀 ¿Cuál es tu nivel de caos? Pruébalo →</a>
 <div class="tools">
   <button type="button" id="clear">Limpiar</button>
   <button type="button" id="save">Guardar imagen</button>
@@ -122,6 +146,7 @@
   const N = 20;        // largo del gusano (segmentos). Fijo: no crece al comer
   const NEED = 8;      // cosas que hay que comer para activar el furor
   const FRENZY = 6;    // segundos que dura el furor
+  const PAUSE = 3;     // segundos sin cosas nuevas después del furor
   const EMOJIS = ['🍕', '🍩', '🍉', '🍔', '🍟', '🍓', '🍪', '🌮', '🍌', '🧀',
                   '🐸', '👻', '🚀', '🦄', '👾', '🛸', '🐙', '⭐', '🦖', '🤖'];
   const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
@@ -142,7 +167,7 @@
   let dirX = 1, dirY = 0;
   let speed = 0, flash = 0, fzS = 1;
   let lastMove = 0, lastT = 0, moved = false;
-  let eaten = 0, frenzy = false, frenzyT = 0, spawnCd = 0;
+  let eaten = 0, frenzy = false, frenzyT = 0, spawnCd = 0, pauseT = 0;
 
   function sizeCanvas(c, g, dpr) {
     c.width = Math.round(W * dpr);
@@ -227,6 +252,7 @@
 
   function endFrenzy() {
     frenzy = false;
+    pauseT = PAUSE;
     furorBox.classList.remove('on');
     furorLabel.textContent = 'furor';
     flash = 1;
@@ -339,8 +365,9 @@
 
     // Aparecen cosas nuevas
     spawnCd -= dt;
+    pauseT -= dt;
     const maxItems = frenzy ? 9 : 4;
-    if (items.length < maxItems && spawnCd <= 0) {
+    if (pauseT <= 0 && items.length < maxItems && spawnCd <= 0) {
       spawnItem(now);
       spawnCd = frenzy ? 0.15 + Math.random() * 0.3 : 0.5 + Math.random();
     }
