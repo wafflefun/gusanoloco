@@ -1,4 +1,14 @@
 <!doctype html>
+<!--
+  ===== EL GUSANO · GUÍA RÁPIDA =====
+  Busca estas palabras con la lupa del editor:
+  "CAMBIAR:"  -> números y textos que puedes tocar sin miedo.
+  "AGREGAR:"  -> lugares donde puedes sumar ideas nuevas.
+  Colores ............. bloque <style> (:root) y BG/BGRGB en el script
+  Links a otros juegos  <nav class="promos">
+  Largo, furor, tiempos constantes al inicio del <script>
+  Emojis .............. lista EMOJIS
+-->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -6,6 +16,7 @@
 <title>El Gusano</title>
 <meta name="description" content="Mueve el mouse o el dedo, come cosas random y activa el modo furor.">
 <style>
+  /* CAMBIAR: --bg = fondo, --ink = textos. Si cambias --bg, cambia también BG y BGRGB en el script */
   :root { --bg: #0d0a1f; --ink: #f3efff; --mut: rgba(243, 239, 255, .7); }
   * { box-sizing: border-box; }
   html, body {
@@ -29,7 +40,7 @@
   .hint {
     position: fixed;
     left: 50%;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
     transform: translateX(-50%);
     color: var(--ink);
     font-size: 1.05rem;
@@ -83,6 +94,7 @@
     background: rgba(255, 255, 255, .14);
     overflow: hidden;
   }
+  /* CAMBIAR: colores de la barra de furor */
   #furorFill {
     height: 100%;
     width: 0;
@@ -103,6 +115,9 @@
     bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
     transform: translateX(-50%);
     display: flex;
+    flex-wrap: wrap;            /* CAMBIAR: permite varias filas si hay muchos links */
+    justify-content: center;
+    width: calc(100% - 28px);
     gap: 8px;
   }
   .promo {
@@ -134,26 +149,34 @@
   <span id="furorLabel">furor</span>
 </div>
 
+<!-- CAMBIAR: texto de ayuda que se ve al inicio -->
 <p class="hint" id="hint">Mueve el dedo o el mouse y come cosas</p>
+
+<!-- CAMBIAR: links a tus otros juegos. Para agregar uno, copia una línea <a class="promo"> y cambia link y texto.
+     (Ojo: en el celular caben unos 2-3 botones en la barra; si agregas más, hay que hacerla más compacta) -->
 <nav class="promos">
   <a class="promo" href="https://wafflefun.github.io/tucaos/">🌀 Tu nivel de caos</a>
   <a class="promo" href="https://wafflefun.github.io/tumonstruo/">👾 Crea tu monstruo</a>
+  <a class="promo" href="https://wafflefun.github.io/noparess/">🎯 No pares el cursor</a>
 </nav>
 <div class="tools">
   <button type="button" id="clear">Limpiar</button>
   <button type="button" id="save">Guardar imagen</button>
 </div>
 
-<!-- Aquí puedes poner más adelante una barra de publicidad (propia o AdSense) -->
+<!-- AGREGAR: aquí puedes poner más adelante una barra de publicidad (propia o AdSense) -->
 
 <script>
 (() => {
+  // CAMBIAR: colores de fondo (deben coincidir con --bg del CSS; BGRGB es el mismo color en formato R,G,B)
   const BGRGB = '13,10,31';
   const BG = '#0d0a1f';
+  // ===== AJUSTES PRINCIPALES (CAMBIAR: toca los números) =====
   const N = 20;        // largo del gusano (segmentos). Fijo: no crece al comer
   const NEED = 8;      // cosas que hay que comer para activar el furor
   const FRENZY = 6;    // segundos que dura el furor
   const PAUSE = 3;     // segundos sin cosas nuevas después del furor
+  // CAMBIAR/AGREGAR: emojis que aparecen para comer. Puedes sumar o quitar.
   const EMOJIS = ['🍕', '🍩', '🍉', '🍔', '🍟', '🍓', '🍪', '🌮', '🍌', '🧀',
                   '🐸', '👻', '🚀', '🦄', '👾', '🛸', '🐙', '⭐', '🦖', '🤖'];
   const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
@@ -191,13 +214,14 @@
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, W, H);
     const m = Math.min(W, H);
+    // CAMBIAR: tamaño del gusano (L) y de los emojis (itemSize) según la pantalla
     L = Math.max(8, Math.min(14, m / 32));
     itemSize = Math.max(32, Math.min(50, m / 11));
   }
 
   // ---------- Chispas (más grandes y brillantes) ----------
   function addSpark(x, y, h, power) {
-    if (sparks.length > 220) return;
+    if (sparks.length > 220) return;  // CAMBIAR: máximo de chispas a la vez
     const a = Math.random() * Math.PI * 2;
     const v = (3 + Math.random() * 5) * (power || 1) * 60;
     sparks.push({
@@ -205,7 +229,7 @@
       vx: Math.cos(a) * v,
       vy: Math.sin(a) * v,
       life: 1,
-      w: 2.6 + Math.random() * 1.8,
+      w: 2.6 + Math.random() * 1.8,  // CAMBIAR: grosor de las chispas
       h: ((h + Math.random() * 40) % 360 + 360) % 360
     });
   }
@@ -226,6 +250,7 @@
         if (Math.hypot(x - it.x, y - it.y) < itemSize * 1.4) { ok = false; break; }
       }
       if (!ok) continue;
+      // AGREGAR: aquí se elige el emoji. Idea: hacer que algunos sean "raros" (poca probabilidad) para una colección.
       items.push({
         x, y,
         e: EMOJIS[(Math.random() * EMOJIS.length) | 0],
@@ -245,6 +270,7 @@
     }
   }
 
+  // AGREGAR: aquí empieza el furor (idea: sonido que sube de tono)
   function startFrenzy() {
     frenzy = true;
     frenzyT = FRENZY;
@@ -267,6 +293,7 @@
     updateMeter();
   }
 
+  // AGREGAR: aquí se come un emoji (it.e). Ideas: guardarlo en localStorage para un álbum de colección, o sonido "pop".
   function eat(i, now) {
     const it = items.splice(i, 1)[0];
     eatFx.push({ x: it.x, y: it.y, e: it.e, size: it.size, t0: now });
@@ -288,7 +315,7 @@
     const dt = Math.min(0.05, Math.max(0.001, (t - lastT) / 1000));
     lastT = t;
 
-    // Si nadie lo mueve, el gusano pasea solito y esquiva las cosas
+    // CAMBIAR: 2500 = milisegundos sin tocar antes de que el gusano pasee solo
     const idle = !reduce && t - lastMove > 2500;
     if (idle) {
       let tx0 = W / 2 + Math.cos(now * 0.7) * W * 0.34;
@@ -307,10 +334,12 @@
     }
 
     // Cabeza (en furor se vuelve loco: zigzaguea alrededor de tu dedo)
+    // CAMBIAR: 28 = cuánto zigzaguea en furor
     const wob = (frenzy && !reduce) ? 28 : 0;
     const gx = target.x + Math.cos(now * 9) * wob;
     const gy = target.y + Math.sin(now * 7.3) * wob;
     const px = head.x, py = head.y;
+    // CAMBIAR: 13.4 = qué tan pegado sigue al dedo (más alto = más rápido); 22 es lo mismo en furor
     const ease = 1 - Math.exp(-dt * (frenzy ? 22 : 13.4));
     head.x += (gx - head.x) * ease;
     head.y += (gy - head.y) * ease;
@@ -325,10 +354,12 @@
     }
     const ang = Math.atan2(dirY, dirX);
 
+    // CAMBIAR: velocidad con que cambian los colores (30 normal, +360 en furor)
     hue = (hue + dt * (30 + speed * 0.35 + (frenzy ? 360 : 0))) % 360;
     const baseHue = (hue + (ang + Math.PI) * 57.2958 * 0.25) % 360;
 
     flash *= Math.exp(-dt * 4);
+    // CAMBIAR: 1.3 = qué tan grande se pone el gusano en furor
     fzS += ((frenzy ? 1.3 : 1) - fzS) * (1 - Math.exp(-dt * 8));
 
     // Cuerpo (largo fijo)
@@ -344,6 +375,7 @@
     // Fondo con estela
     ctx.globalCompositeOperation = 'source-over';
     ctx.shadowBlur = 0;
+    // CAMBIAR: 0.14 = largo de la estela (más bajo = estela más larga)
     ctx.fillStyle = 'rgba(' + BGRGB + ',0.14)';
     ctx.fillRect(0, 0, W, H);
 
@@ -365,6 +397,7 @@
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       const d = Math.hypot(it.x - head.x, it.y - head.y);
+      // CAMBIAR: 220 = alcance del imán en furor
       if (frenzy && !idle && d < 220 && d > 1) {
         const s2 = (150 + 600 * (1 - d / 220)) * dt;
         it.x += (head.x - it.x) / d * s2;
@@ -377,6 +410,7 @@
     // Aparecen cosas nuevas
     spawnCd -= dt;
     pauseT -= dt;
+    // CAMBIAR: máximo de emojis en pantalla (9 en furor, 4 normal) y cada cuánto aparecen (segundos)
     const maxItems = frenzy ? 9 : 4;
     if (pauseT <= 0 && items.length < maxItems && spawnCd <= 0) {
       spawnItem(now);
@@ -397,11 +431,13 @@
       const s = segs[i];
       const k = 1 - i / N;
       let m = 1;
+      // CAMBIAR: 38 = velocidad de la ola del "glup"; 0.5 = qué tanto se infla
       for (const g of gulps) {
         const a = 1 - Math.abs(i - (now - g) * 38) / 2.5;
         if (a > 0) m = Math.max(m, 1 + 0.5 * a);
       }
       const r = R * (0.3 + 0.7 * Math.pow(k, 0.7)) * m;
+      // CAMBIAR: 6 = diferencia de color entre segmentos; 95% = intensidad; 60 = brillo
       const c = 'hsl(' + (((baseHue + i * 6) % 360) | 0) + ',95%,' + (60 + flash * 15).toFixed(0) + '%)';
       ctx.shadowColor = c;
       ctx.shadowBlur = reduce ? 0 : 14 + flash * 22 + (frenzy ? 18 : 0);
@@ -430,6 +466,7 @@
     }
 
     // Chispas al moverte rápido (y sin parar en furor)
+    // CAMBIAR: 840 = velocidad mínima para chispas (más bajo = más chispas); 0.6 y 0.9 = probabilidad
     if (!reduce && speed > 840 && Math.random() < 0.6) addSpark(head.x, head.y, baseHue, 1);
     if (!reduce && frenzy && Math.random() < 0.9) addSpark(head.x, head.y, baseHue, 1.6);
     ctx.lineCap = 'round';
