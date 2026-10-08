@@ -40,7 +40,7 @@
   .hint {
     position: fixed;
     left: 50%;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
     transform: translateX(-50%);
     color: var(--ink);
     font-size: 1.05rem;
@@ -109,35 +109,6 @@
   .furor.on .bar { box-shadow: 0 0 14px 2px rgba(255, 79, 163, .7); }
   .furor.on #furorLabel { color: #ffd24f; }
 
-  .promos {
-    position: fixed;
-    left: 50%;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
-    transform: translateX(-50%);
-    display: flex;
-    flex-wrap: wrap;            /* CAMBIAR: permite varias filas si hay muchos links */
-    justify-content: center;
-    width: calc(100% - 28px);
-    gap: 8px;
-  }
-  .promo {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    padding: 0 .9rem;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, .25);
-    background: rgba(255, 255, 255, .08);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
-    color: var(--ink);
-    font-size: .9rem;
-    font-weight: 500;
-    text-decoration: none;
-    white-space: nowrap;
-  }
-  .promo:hover { background: rgba(255, 255, 255, .16); }
-  .promo:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -152,13 +123,7 @@
 <!-- CAMBIAR: texto de ayuda que se ve al inicio -->
 <p class="hint" id="hint">Mueve el dedo o el mouse y come cosas</p>
 
-<!-- CAMBIAR: links a tus otros juegos. Para agregar uno, copia una línea <a class="promo"> y cambia link y texto.
-     (Ojo: en el celular caben unos 2-3 botones en la barra; si agregas más, hay que hacerla más compacta) -->
-<nav class="promos">
-  <a class="promo" href="https://wafflefun.github.io/tucaos/">🌀 Tu nivel de caos</a>
-  <a class="promo" href="https://wafflefun.github.io/tumonstruo/">👾 Crea tu monstruo</a>
-  <a class="promo" href="https://wafflefun.github.io/noparess/">🎯 No pares el cursor</a>
-</nav>
+<!-- Los links a otros juegos ya no van aquí: se editan en juegos.js (botón "¡Aquí hay más!") -->
 <div class="tools">
   <button type="button" id="clear">Limpiar</button>
   <button type="button" id="save">Guardar imagen</button>
@@ -577,5 +542,7 @@
   requestAnimationFrame(frame);
 })();
 </script>
+<!-- AQUÍ SE AGREGA EL BOTÓN "¡Aquí hay más!" (menú con todos los juegos). La lista de juegos se edita en juegos.js, en el repositorio wafflefun.github.io -->
+<script src="https://wafflefun.github.io/juegos.js"></script>
 </body>
 </html>
